@@ -54,6 +54,21 @@ interface NotesRow {
    Conversores local <-> remoto
    ============================================================ */
 
+/**
+ * Genera un UUID v4 en el navegador. Se usa como id de filas nuevas
+ * para no depender del default (gen_random_uuid) de la base de datos.
+ */
+function uuid(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 function rowToCourse(row: CourseRow): Course {
   const localId = row.local_id || `remote_${row.id}`;
   return {
@@ -76,7 +91,7 @@ function rowToCourse(row: CourseRow): Course {
 
 function courseToRow(course: Course, userId: string, map: Record<string, string>): CourseRow {
   return {
-    id: map[course.id] || undefined as unknown as string,
+    id: map[course.id] || uuid(),
     user_id: userId,
     local_id: course.id,
     youtube_url: course.youtubeUrl,
@@ -99,8 +114,9 @@ function progressToRow(
   userId: string,
   courseId: string,
   vp: VideoProgress
-): Omit<ProgressRow, 'id'> {
+): ProgressRow {
   return {
+    id: uuid(),
     user_id: userId,
     course_id: courseId,
     video_id: vp.videoId,
@@ -198,6 +214,7 @@ export async function syncAll(
         .from('course_notes')
         .upsert(
           {
+            id: uuid(),
             user_id: userId,
             course_id: remoteId,
             overall_notes: prog.overallNotes || '',
@@ -494,6 +511,7 @@ export function queuePushProgress(
       .from('course_notes')
       .upsert(
         {
+          id: uuid(),
           user_id: userId,
           course_id: remoteId,
           overall_notes: progress.overallNotes || '',
