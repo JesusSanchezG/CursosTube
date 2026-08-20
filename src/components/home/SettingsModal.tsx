@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Key, Play, Download, Upload, Check, AlertCircle, ShieldCheck, Cloud, LogIn, LogOut } from 'lucide-react';
+import { Key, Play, Download, Upload, Check, AlertCircle, ShieldCheck, Cloud, LogIn, LogOut, Loader2, Activity } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import type { UserSettings } from '../../types/course';
 import { getAllProgress, getSavedCourses, saveCourses, saveAllProgress } from '../../services/storage';
+import { testCloudConnection, type CloudTestResult } from '../../services/sync';
 import type { User } from '@supabase/supabase-js';
 
 interface SettingsModalProps {
@@ -37,6 +38,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [autoPlayDelaySeconds, setAutoPlayDelaySeconds] = useState(settings.autoPlayDelaySeconds || 1);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [importMessage, setImportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<CloudTestResult | null>(null);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -199,6 +202,57 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   )}
                 </span>
               </div>
+
+              {/* Probar conexión (diagnóstico paso a paso) */}
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsTesting(true);
+                  setTestResult(null);
+                  const result = await testCloudConnection(user.id);
+                  setTestResult(result);
+                  setIsTesting(false);
+                }}
+                disabled={isTesting}
+                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0a192f] hover:bg-[#132b50] text-white text-[11px] font-semibold transition-colors disabled:opacity-60"
+              >
+                {isTesting ? (
+                  <Loader2 className="w-3 h-3 animate-spin text-sky-300" />
+                ) : (
+                  <Activity className="w-3 h-3 text-sky-300" />
+                )}
+                {isTesting ? 'Probando...' : 'Probar conexión con Supabase'}
+              </button>
+
+              {testResult && (
+                <div className="space-y-1 pt-1">
+                  {testResult.steps.map((s, i) => (
+                    <div key={i} className="flex items-start justify-between gap-2 text-[10px]">
+                      <span className="flex items-center gap-1.5 text-[#555043] font-medium">
+                        {s.ok ? (
+                          <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-3 h-3 text-red-600 shrink-0" />
+                        )}
+                        {s.name}
+                      </span>
+                      <span className={`text-right truncate ${s.ok ? 'text-[#736d5a]' : 'text-red-700 font-semibold'}`}>
+                        {s.detail}
+                      </span>
+                    </div>
+                  ))}
+                  <p
+                    className={`pt-1 border-t border-[#dedcd3]/70 font-semibold text-[10px] ${
+                      testResult.ok ? 'text-emerald-700' : 'text-red-700'
+                    }`}
+                  >
+                    {testResult.ok
+                      ? `Todo correcto: ${testResult.coursesInCloud} curso(s) en la nube para esta cuenta`
+                      : 'La conexión falló — revisa el paso marcado en rojo'}
+                  </p>
+                </div>
+              )}
+
               <p className="text-[10px] text-[#736d5a] pt-1 border-t border-[#dedcd3]/70">
                 Si el ID de usuario difiere entre dispositivos, son cuentas distintas y los datos no se comparten.
               </p>

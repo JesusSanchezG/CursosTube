@@ -157,7 +157,15 @@ export async function syncAll(
         .from('courses')
         .upsert(rows, { onConflict: 'user_id,local_id' })
         .select('id,local_id');
-      if (!error && data) {
+      if (error) {
+        console.error('[sync] error al subir cursos:', error);
+        return {
+          courses: localCourses,
+          allProgress: localProgress,
+          error: `No se pudieron subir los cursos: ${error.message}`,
+        };
+      }
+      if (data) {
         for (const r of data as { id: string; local_id: string | null }[]) {
           if (r.local_id) map[r.local_id] = r.id;
         }
@@ -174,11 +182,19 @@ export async function syncAll(
         .filter((vp) => vp.videoId)
         .map((vp) => progressToRow(userId, remoteId, vp));
       if (rows.length > 0) {
-        await client
+        const { error: progError } = await client
           .from('video_progress')
           .upsert(rows, { onConflict: 'user_id,course_id,video_id' });
+        if (progError) {
+          console.error('[sync] error al subir progreso:', progError);
+          return {
+            courses: localCourses,
+            allProgress: localProgress,
+            error: `No se pudo subir el progreso: ${progError.message}`,
+          };
+        }
       }
-      await client
+      const { error: notesError } = await client
         .from('course_notes')
         .upsert(
           {
@@ -189,6 +205,14 @@ export async function syncAll(
           },
           { onConflict: 'user_id,course_id' }
         );
+      if (notesError) {
+        console.error('[sync] error al subir notas:', notesError);
+        return {
+          courses: localCourses,
+          allProgress: localProgress,
+          error: `No se pudieron subir las notas: ${notesError.message}`,
+        };
+      }
     }
 
     saveSyncMap(map);
@@ -334,9 +358,77 @@ export async function syncAll(
     return {
       courses: localCourses,
       allProgress: localProgress,
-      error: 'Error al sincronizar con la nube. Revisa tu conexión.',
+      error: `Error al sincronizar con la nube: ${e instanceof Error ? e.message : String(e)}`,
     };
   }
+}
+
+/* ============================================================
+   Diagnóstico de conexión paso a paso (botón en Ajustes).
+   Muestra exactamente en qué punto falla la comunicación
+   con Supabase desde el navegador.
+   ============================================================ */
+
+export interface CloudTestResult {
+  ok: boolean;
+  steps: { name: string; ok: boolean; detail: string }[];
+  coursesInCloud: number;
+}
+
+export async function testCloudConnection(userId: string): Promise<CloudTestResult> {
+  const steps: CloudTestResult['steps'] = [];
+
+  if (!isSupabaseConfigured) {
+    return {
+      ok: false,
+      steps: [{ name: 'Configuración', ok: false, detail: 'Supabase no configurado en el .env del build' }],
+      coursesInCloud: 0,
+    };
+  }
+
+  const client = await getSupabase().catch((e) => {
+    steps.push({ name: 'Cargar librería Supabase', ok: false, detail: String(e) });
+    return null;
+  });
+  if (!client) {
+    if (steps.length === 0) {
+      steps.push({ name: 'Cargar librería Supabase', ok: false, detail: 'Cliente no disponible' });
+    }
+    return { ok: false, steps, coursesInCloud: 0 };
+  }
+  steps.push({ name: 'Cargar librería Supabase', ok: true, detail: 'Cliente creado correctamente' });
+
+  const { data: userRes, error: userErr } = await client.auth.getUser();
+  if (userErr || !userRes?.user) {
+    steps.push({
+      name: 'Sesión de usuario',
+      ok: false,
+      detail: userErr?.message || 'No hay sesión activa',
+    });
+    return { ok: false, steps, coursesInCloud: 0 };
+  }
+  steps.push({
+    name: 'Sesión de usuario',
+    ok: true,
+    detail: `${userRes.user.email || 'usuario'} (${userRes.user.id.slice(0, 8)}…)`,
+  });
+
+  const { data, error } = await client.from('courses').select('id').eq('user_id', userId);
+  if (error) {
+    steps.push({
+      name: 'Leer tabla courses',
+      ok: false,
+      detail: `${error.code || 'HTTP'}: ${error.message}`,
+    });
+    return { ok: false, steps, coursesInCloud: 0 };
+  }
+  steps.push({
+    name: 'Leer tabla courses',
+    ok: true,
+    detail: `${(data || []).length} fila(s) encontradas para este usuario`,
+  });
+
+  return { ok: true, steps, coursesInCloud: (data || []).length };
 }
 
 /* ============================================================
