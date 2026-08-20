@@ -281,7 +281,7 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Also update course last played info
     const updatedCourses = getSavedCourses().map(c => {
       if (c.id === courseId) {
-        return { ...c, lastPlayedVideoId: videoId, lastPlayedTimestamp: seconds, updatedAt: Date.now() };
+        return { ...c, lastPlayedVideoId: videoId, lastPlayedTimestamp: Math.floor(seconds), updatedAt: Date.now() };
       }
       return c;
     });

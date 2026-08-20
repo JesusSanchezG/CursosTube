@@ -104,7 +104,7 @@ function courseToRow(course: Course, userId: string, map: Record<string, string>
     is_favorite: course.isFavorite,
     videos: course.videos,
     last_played_video_id: course.lastPlayedVideoId || null,
-    last_played_timestamp: course.lastPlayedTimestamp || 0,
+    last_played_timestamp: Math.floor(course.lastPlayedTimestamp || 0),
     created_at: new Date(course.createdAt || Date.now()).toISOString(),
     updated_at: new Date(course.updatedAt || Date.now()).toISOString(),
   };
