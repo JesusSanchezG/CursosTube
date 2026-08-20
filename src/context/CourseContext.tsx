@@ -101,6 +101,26 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     refreshSync();
   }, [uid, refreshSync]);
 
+  // Re-sincronización automática al volver a la pestaña (con sesión activa):
+  // cubre cambios hechos en otro dispositivo mientras la app estaba en segundo plano
+  useEffect(() => {
+    if (!uid) return;
+    const onFocus = () => {
+      refreshSync();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshSync();
+      }
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [uid, refreshSync]);
+
   // Derived active course & progress
   const activeCourse = useMemo(() => {
     if (!activeCourseId) return null;

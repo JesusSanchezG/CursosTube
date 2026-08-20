@@ -194,10 +194,19 @@ export async function syncAll(
     saveSyncMap(map);
 
     // 3) Traer datos remotos
-    const { data: courseRows } = await client
+    const { data: courseRows, error: pullCoursesError } = await client
       .from('courses')
       .select('*')
       .eq('user_id', userId);
+
+    if (pullCoursesError) {
+      console.error('[sync] error al descargar cursos:', pullCoursesError);
+      return {
+        courses: localCourses,
+        allProgress: localProgress,
+        error: 'No se pudieron descargar los cursos de la nube. Revisa tu conexión e inténtalo de nuevo.',
+      };
+    }
 
     const remoteCourses: Course[] = [];
     const remoteUuids: string[] = [];
@@ -236,10 +245,12 @@ export async function syncAll(
     let progressRows: ProgressRow[] = [];
     let notesRows: NotesRow[] = [];
     if (remoteUuids.length > 0) {
-      const [{ data: p }, { data: n }] = await Promise.all([
+      const [{ data: p, error: progressError }, { data: n, error: notesError }] = await Promise.all([
         client.from('video_progress').select('*').in('course_id', remoteUuids),
         client.from('course_notes').select('*').in('course_id', remoteUuids),
       ]);
+      if (progressError) console.error('[sync] error al descargar progreso:', progressError);
+      if (notesError) console.error('[sync] error al descargar notas:', notesError);
       progressRows = (p || []) as ProgressRow[];
       notesRows = (n || []) as NotesRow[];
     }
@@ -361,6 +372,8 @@ export function queuePushCourse(userId: string, course: Course) {
         map[r.local_id] = r.id;
         saveSyncMap(map);
       }
+    } else if (error) {
+      console.error('[sync] error al subir curso:', error);
     }
   });
 }
@@ -380,11 +393,12 @@ export function queuePushProgress(
       .filter((vp) => vp.videoId)
       .map((vp) => progressToRow(userId, remoteId, vp));
     if (rows.length > 0) {
-      await client
+      const { error } = await client
         .from('video_progress')
         .upsert(rows, { onConflict: 'user_id,course_id,video_id' });
+      if (error) console.error('[sync] error al subir progreso:', error);
     }
-    await client
+    const { error: notesError } = await client
       .from('course_notes')
       .upsert(
         {
@@ -395,6 +409,7 @@ export function queuePushProgress(
         },
         { onConflict: 'user_id,course_id' }
       );
+    if (notesError) console.error('[sync] error al subir notas:', notesError);
   });
 }
 
@@ -405,11 +420,12 @@ export function queuePushDelete(userId: string, course: Course) {
   debounced(`delete_${course.id}`, 300, async () => {
     const client = await getSupabase();
     if (!client) return;
-    await client
+    const { error } = await client
       .from('courses')
       .delete()
       .eq('id', remoteId)
       .eq('user_id', userId);
+    if (error) console.error('[sync] error al borrar curso remoto:', error);
     const map = getSyncMap();
     delete map[course.id];
     saveSyncMap(map);
