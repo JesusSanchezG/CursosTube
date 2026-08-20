@@ -15,7 +15,7 @@ import {
 } from '../services/storage';
 import { createCourseFromUrl, fetchVideoOEmbed, parseYouTubeUrl } from '../services/youtube';
 import { useAuth } from './AuthContext';
-import { syncAll, queuePushCourse, queuePushProgress, queuePushDelete } from '../services/sync';
+import { syncAll, queuePushCourse, queuePushProgress, queuePushDelete, getRemoteStats } from '../services/sync';
 
 interface CourseContextType {
   courses: Course[];
@@ -29,6 +29,8 @@ interface CourseContextType {
   isSyncing: boolean;
   isSignedIn: boolean;
   lastSyncError: string | null;
+  lastSyncAt: number | null;
+  remoteStats: { courses: number; progress: number; error: string | null };
   refreshSync: () => Promise<string | null>;
 
   // Actions
@@ -62,6 +64,12 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [lastSyncError, setLastSyncError] = useState<string | null>(null);
+  const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
+  const [remoteStats, setRemoteStats] = useState<{
+    courses: number;
+    progress: number;
+    error: string | null;
+  }>({ courses: 0, progress: 0, error: null });
 
   // Persist to localStorage (offline cache / local-first)
   useEffect(() => {
@@ -90,6 +98,9 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setCourses(res.courses);
       setAllProgress(res.allProgress);
       setLastSyncError(res.error);
+      setLastSyncAt(Date.now());
+      // Refresca el contador de lo que hay en la nube (diagnóstico)
+      getRemoteStats(uid).then((stats) => setRemoteStats(stats));
       return res.error;
     } finally {
       setIsSyncing(false);
@@ -119,6 +130,19 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibility);
     };
+  }, [uid, refreshSync]);
+
+  // Sync periódico (cada 45s con sesión y app abierta): garantiza que los
+  // cambios hechos en otros dispositivos lleguen aunque la pestaña nunca
+  // pierda el foco
+  useEffect(() => {
+    if (!uid) return;
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        refreshSync();
+      }
+    }, 45000);
+    return () => clearInterval(interval);
   }, [uid, refreshSync]);
 
   // Derived active course & progress
@@ -422,6 +446,8 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     isSyncing,
     isSignedIn: Boolean(userId),
     lastSyncError,
+    lastSyncAt,
+    remoteStats,
     refreshSync,
     addCourse,
     deleteCourse,
@@ -449,6 +475,8 @@ export const CourseProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     isSyncing,
     userId,
     lastSyncError,
+    lastSyncAt,
+    remoteStats,
     refreshSync,
     addCourse,
     deleteCourse,

@@ -431,3 +431,33 @@ export function queuePushDelete(userId: string, course: Course) {
     saveSyncMap(map);
   });
 }
+
+/* ============================================================
+   Diagnóstico: cuántos cursos/progreso hay en la nube para el
+   usuario actual (se muestra en Ajustes para verificar que la
+   cuenta de cada dispositivo es la misma y que sí se guarda).
+   ============================================================ */
+
+export async function getRemoteStats(
+  userId: string
+): Promise<{ courses: number; progress: number; error: string | null }> {
+  if (!isSupabaseConfigured) {
+    return { courses: 0, progress: 0, error: 'Supabase no configurado' };
+  }
+  try {
+    const client = await getSupabase();
+    if (!client) return { courses: 0, progress: 0, error: 'Supabase no configurado' };
+    const [{ data: c, error: e1 }, { data: p, error: e2 }] = await Promise.all([
+      client.from('courses').select('id').eq('user_id', userId),
+      client.from('video_progress').select('id').eq('user_id', userId),
+    ]);
+    if (e1 || e2) {
+      console.error('[sync] error al consultar estadísticas:', e1 || e2);
+      return { courses: 0, progress: 0, error: 'Error al consultar la nube' };
+    }
+    return { courses: (c || []).length, progress: (p || []).length, error: null };
+  } catch (e) {
+    console.error('[sync] error en getRemoteStats:', e);
+    return { courses: 0, progress: 0, error: 'Error al consultar la nube' };
+  }
+}

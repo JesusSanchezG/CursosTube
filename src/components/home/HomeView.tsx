@@ -8,7 +8,7 @@ import { CourseCard } from './CourseCard';
 import { EmptyMockupState } from './EmptyMockupState';
 import { AddCourseModal } from './AddCourseModal';
 import { SettingsModal } from './SettingsModal';
-import { Search, BookOpen, AlertCircle, RefreshCw } from 'lucide-react';
+import { Search, BookOpen, AlertCircle, RefreshCw, Cloud, LogIn } from 'lucide-react';
 
 // Code-splitting: el modal de auth (y supabase-js) solo se carga al abrirlo
 const AuthModal = lazy(() =>
@@ -28,7 +28,9 @@ export const HomeView: React.FC = () => {
     isSyncing,
     isSignedIn,
     refreshSync,
-    lastSyncError
+    lastSyncError,
+    lastSyncAt,
+    remoteStats
   } = useCourseContext();
 
   const { user, isAuthLoading, isSupabaseConfigured, signOut } = useAuth();
@@ -103,6 +105,28 @@ export const HomeView: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
           <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-2 text-xs text-amber-800">
             La sincronización en la nube no está disponible (falta configurar Supabase en el archivo .env). La app sigue funcionando con almacenamiento local.
+          </div>
+        </div>
+      )}
+
+      {/* Aviso: hay cursos locales sin sesión (no se suben a la nube) */}
+      {!isSignedIn && courses.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+          <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-2.5 text-xs text-amber-800 flex items-start justify-between gap-3">
+            <span className="flex items-start gap-2">
+              <Cloud className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>
+                Tienes <strong>{courses.length}</strong> {courses.length === 1 ? 'curso guardado' : 'cursos guardados'}{' '}
+                solo en este dispositivo. Inicia sesión para sincronizarlos con tus otros dispositivos.
+              </span>
+            </span>
+            <button
+              onClick={() => setIsAuthModalOpen(true)}
+              className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#0a192f] hover:bg-[#132b50] text-white font-semibold transition-colors"
+            >
+              <LogIn className="w-3 h-3" />
+              Iniciar sesión
+            </button>
           </div>
         </div>
       )}
@@ -267,6 +291,9 @@ export const HomeView: React.FC = () => {
           setIsSettingsModalOpen(false);
           setIsAuthModalOpen(true);
         }}
+        lastSyncError={lastSyncError}
+        lastSyncAt={lastSyncAt}
+        remoteStats={remoteStats}
       />
 
       <Suspense fallback={null}>

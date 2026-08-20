@@ -14,6 +14,9 @@ interface SettingsModalProps {
   isSignedIn: boolean;
   onSignOut: () => Promise<void>;
   onOpenAuthModal: () => void;
+  lastSyncError: string | null;
+  lastSyncAt: number | null;
+  remoteStats: { courses: number; progress: number; error: string | null };
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -25,6 +28,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   isSignedIn,
   onSignOut,
   onOpenAuthModal,
+  lastSyncError,
+  lastSyncAt,
+  remoteStats,
 }) => {
   const [apiKey, setApiKey] = useState(settings.youtubeApiKey || '');
   const [autoPlayNext, setAutoPlayNext] = useState(settings.autoPlayNext);
@@ -155,6 +161,47 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <LogIn className="w-3.5 h-3.5 text-sky-300" />
                 Iniciar sesión / Crear cuenta
               </button>
+            </div>
+          )}
+
+          {/* Diagnóstico de sincronización (con sesión) */}
+          {isSignedIn && user && (
+            <div className="p-3 rounded-xl bg-[#e5e4de]/60 border border-[#dedcd3] text-[11px] space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-[#0a192f]">Cuenta</span>
+                <span className="text-[#736d5a] truncate ml-2">{user.email}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-[#0a192f]">ID de usuario</span>
+                <span className="text-[#736d5a] font-mono text-[10px] truncate ml-2">
+                  {(user.id || '').slice(0, 8)}…
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-[#0a192f]">Cursos en la nube</span>
+                <span className="text-[#736d5a]">
+                  {remoteStats.error ? (
+                    <span className="text-red-700">{remoteStats.error}</span>
+                  ) : (
+                    `${remoteStats.courses} cursos · ${remoteStats.progress} progreso`
+                  )}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-[#0a192f]">Última sincronización</span>
+                <span className="text-[#736d5a]">
+                  {lastSyncError ? (
+                    <span className="text-red-700">Error</span>
+                  ) : lastSyncAt ? (
+                    new Date(lastSyncAt).toLocaleTimeString()
+                  ) : (
+                    '—'
+                  )}
+                </span>
+              </div>
+              <p className="text-[10px] text-[#736d5a] pt-1 border-t border-[#dedcd3]/70">
+                Si el ID de usuario difiere entre dispositivos, son cuentas distintas y los datos no se comparten.
+              </p>
             </div>
           )}
         </div>
