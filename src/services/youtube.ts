@@ -66,8 +66,13 @@ export function parseYouTubeUrl(rawUrl: string): ParsedYouTubeUrl {
           videoId = vParam;
         }
       }
-      // Video ID in /embed/ID or /v/ID or /shorts/ID
-      else if (urlObj.pathname.startsWith('/embed/') || urlObj.pathname.startsWith('/v/') || urlObj.pathname.startsWith('/shorts/')) {
+      // Video ID in /embed/ID, /v/ID, /shorts/ID or /live/ID (directos)
+      else if (
+        urlObj.pathname.startsWith('/embed/') ||
+        urlObj.pathname.startsWith('/v/') ||
+        urlObj.pathname.startsWith('/shorts/') ||
+        urlObj.pathname.startsWith('/live/')
+      ) {
         const parts = urlObj.pathname.split('/').filter(Boolean);
         if (parts.length >= 2 && parts[1].length === 11) {
           videoId = parts[1];
@@ -76,7 +81,7 @@ export function parseYouTubeUrl(rawUrl: string): ParsedYouTubeUrl {
     }
   } catch {
     // Regex fallbacks if URL parsing fails
-    const vMatch = url.match(/(?:v=|\/embed\/|\/watch\?v=|\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    const vMatch = url.match(/(?:v=|\/embed\/|\/watch\?v=|\/shorts\/|\/live\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
     if (vMatch) videoId = vMatch[1];
 
     const listMatch = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
